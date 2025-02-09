@@ -4,6 +4,8 @@ Scripts for clones required for concurrent operations verification between GitHu
 
 ## Organization Migration Procedures (Japanese)
 
+⚠ あくまで概要です。実手順は異なるかも
+
 ### 1. 移行の全体設計
 
 移行先のOrganizationを「移行元と並行稼働しながら構築」するため、以下の点を整理しておきます。
@@ -34,18 +36,8 @@ Scripts for clones required for concurrent operations verification between GitHu
 並行稼働のため、手動でGitリポジトリを移行する。並行稼働しながら移行する場合は、リポジトリをクローンして新Organizationにプッシュする形を取るのが無難です。
 
 1. 移行元のリポジトリをローカルにクローン
-    ```sh
-    git clone --mirror https://github.com/old-org/repo-name.git
-    cd repo-name.git
-    ```
 2. 新Organizationに新しいリポジトリを作成（空リポジトリ）
 3. リモートを変更し、新Organizationにプッシュ
-    ```sh
-    git remote set-url origin https://github.com/new-org/repo-name.git
-    git push --mirror
-    ```
-
-必要な設定を適用（Branches、Settings、Teams、CI/CDなど）
 
 ⚠ 注意点
 
@@ -57,11 +49,6 @@ Scripts for clones required for concurrent operations verification between GitHu
 GitHubはリポジトリ転送時にはIssues・PRを維持できますが、手動で移行する場合はGitHub APIを活用して移行します。
 
 1. Issuesのエクスポート
-    ```sh
-    curl -H "Authorization: token GITHUB_TOKEN" \
-     -H "Accept: application/vnd.github.v3+json" \
-     "https://api.github.com/repos/old-org/repo-name/issues" > issues.json
-    ```
 2. 新Organizationにインポート
     - gh CLIを使って新しいリポジトリにIssuesを作成
     - jq などを使って適切にフォーマット変換が必要
@@ -71,10 +58,6 @@ GitHubはリポジトリ転送時にはIssues・PRを維持できますが、手
 GitHubにはTeamsを直接コピーする機能はないので、手動で設定する必要があります。
 
 1. 移行元のチーム構成を確認（GitHub API推奨）
-    ```sh
-    curl -H "Authorization: token GITHUB_TOKEN" \
-     "https://api.github.com/orgs/old-org/teams" > teams.json
-    ```
 2. 移行先Organizationにチームを作成
 3. メンバーを追加
 4. 各リポジトリの権限を再設定
@@ -84,6 +67,13 @@ GitHubにはTeamsを直接コピーする機能はないので、手動で設定
 - .github/workflows/ 配下のファイルを新リポジトリにコピー
 - Organization Secrets の設定を移行（手動）
 - Self-hosted Runner を使用している場合、新Organizationに登録し直す
+
+### 7. Projectsの移行
+
+1. 移行元のOrganization/リポジトリからGitHub Projectsをエクスポート（JSON）
+2. 移行先のOrganization/リポジトリにGitHub Projectsを作成
+3. エクスポートしたデータをもとに、カラムやカード（IssueやNote）を再作成
+4. 各カードのメタ情報（ラベル、担当者、ステータス）を再設定
 
 ### 7. Webhooks・その他設定の移行
 
@@ -106,3 +96,45 @@ GitHubにはTeamsを直接コピーする機能はないので、手動で設定
 - 一定期間の並行稼働後、移行元のOrganizationをリードオンリーにする
 - 全リポジトリを削除 or アーカイブ（必要に応じて）
 - メンバーへ通知を行い、移行完了
+
+## About Scripts (Japanese)
+
+### GitHub Organization 移行スクリプト - できること & できないこと
+
+| ステップ | 移行対象 | できること（✅） | できないこと（❌） | 備考 |
+|----------|----------|-----------------|-----------------|------|
+| **1. リポジトリ移行** | Git履歴（Branches・Tags・Commits） | ✅ 履歴を保持したまま移行 <br> ✅ 全リポジトリ一括ミラーリング | ❌ GitHub Secrets は移行不可 <br> ❌ Webhooks, Actions は別途対応 | GitHub CLI (`gh repo create` + `git push --mirror`) を使用 |
+| **2. Issues・PR・Labels** | Issues・Pull Requests・Labels | ✅ Issues のタイトル・本文を保持 <br> ✅ PR のタイトル・本文を保持 <br> ✅ Labels を移行 | ❌ Issues・PR のコメントは移行不可 <br> ❌ PR のマージ履歴・ステータスは移行不可 | `gh api` で新リポジトリに再作成 |
+| **3. Wiki** | Wiki（ドキュメント） | ✅ Wiki の履歴を保持したまま移行 | ❌ Wiki のコメントは移行不可 | `git clone --bare` でWikiの履歴を保持しつつ移行 |
+| **4. Teams** | Teams・メンバー・権限 | ✅ Team の名前を保持 <br> ✅ Team の作成（空の状態） | ❌ メンバー・権限の自動移行不可（手動追加が必要） | `gh api` でTeamのみ作成、メンバー追加は手動対応 |
+| **5. GitHub Actions** | ActionsのSecrets・Workflows | ✅ `.github/workflows/` を移行（手動コピー） | ❌ Secrets は移行不可（手動登録が必要） <br> ❌ Self-hosted Runner の設定は移行不可 | `gh api` でSecretsを取得し、手動で設定 |
+| **6. GitHub Projects** | カンバン（ボード・カラム・カード） | ✅ カンバンの名前を保持 <br> ✅ カラム（To Do, In Progress, Doneなど）を移行 <br> ✅ カード（Issue, Note）を移行 | ❌ カードのコメント・履歴は移行不可 <br> ❌ 自動ルール（Automation）は移行不可 | `gh api` を使用し、ボード・カラム・カードを新プロジェクトに作成 |
+
+### 補足
+
+✅ 完全に移行できるもの
+
+- **リポジトリのGit履歴**（Branches, Tags, Commits）
+- **GitHub Projectsのカラム・カード**
+- **Issues・PRのタイトル・本文**
+- **Wikiの履歴**
+- **Labels**
+- **GitHub ActionsのWorkflows（手動コピー）**
+
+❌ 手動対応が必要なもの
+
+- **GitHub ActionsのSecrets**（セキュリティ上の制約）
+- **Issues・PRのコメント**
+- **Projectsの自動ルール（Automation）**
+- **PRのマージ履歴・ステータス**
+- **Teamsのメンバー・権限**
+
+### おすすめの進め方
+
+1. **リポジトリ移行（ステップ1）をまずテスト**
+2. **小規模なプロジェクトで GitHub Projects・Issues・Wiki の移行を試す**
+3. **手動対応が必要な箇所（Secrets・Teams・Actions）を整理**
+4. **本番環境での移行を計画（事前に通知＆並行稼働期間を設定）**
+
+GitHubの制約上 **完全自動化は難しい部分もあるため、APIで可能な範囲をスクリプトで処理し、細かい調整は手動で対応** するのが現実的です。  
+まずはテスト環境で **1つのリポジトリを対象に試して**、問題点を確認しながら進めることをおすすめします！ 🚀
