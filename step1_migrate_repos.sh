@@ -3,7 +3,6 @@
 # ============ 設定 =============
 OLD_ORG="old-org"   # 移行元のOrganization
 NEW_ORG="new-org"   # 移行先のOrganization
-GITHUB_TOKEN="your_personal_access_token"
 
 # リポジトリの一覧を取得
 echo "Fetching repositories from $OLD_ORG..."

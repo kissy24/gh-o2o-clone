@@ -3,7 +3,6 @@
 # ============ 設定 =============
 OLD_ORG="old-org"
 NEW_ORG="new-org"
-GITHUB_TOKEN="your_personal_access_token"
 
 echo "Fetching projects from $OLD_ORG..."
 PROJECTS=$(gh api "orgs/$OLD_ORG/projects" -q ".[].id")
